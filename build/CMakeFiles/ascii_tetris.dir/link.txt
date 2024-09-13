@@ -1,0 +1,1 @@
+/usr/bin/cc CMakeFiles/ascii_tetris.dir/main.c.o CMakeFiles/ascii_tetris.dir/tetris.c.o -o ascii_tetris 
