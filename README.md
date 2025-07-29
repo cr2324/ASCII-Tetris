@@ -1,38 +1,47 @@
 # ASCII Tetris game
+This repo is a fork of robodaunill/ASCII-Tetris repository.
 
 To compile, use:
-
+```   
     make
-
+```
 It will output a binary file Tetris.
 
 Controls:
 
-    q: 		left
-    s: 		bottom (quicker)
-    d: 		right
-    [space]: 	rotate
+    z: left rotate
+    x: right rotate
+    c: double rotate (flip)
+
+    left arrow: left
+    right arrow: right
+    down arrow: down (faster)
+    space/up arrow: down (instantly)
+
+    p: pause
+    r: restart
+    u: undo (undos the last piece placement)
 
 What it looks like:
 
-    [LEVEL: 1 | SCORE: 0]
-    ~~~~~~~~~~~~~~~~~~~~~~~~~
-    !                        !
-    !                        !
-    !                        !
-    !                        !
-    !          O O           !
-    !          O             !
-    !          O             !
-    !                        !
-    !                        !
-    !                        !
-    !                        !
-    !              &         !
-    !              &         !
-    !      # #   X & &       !
-    !      # # X X X @ @ @ @ !
-    ~~~~~~~~~~~~~~~~~~~~~~~~~
+[LEVEL: 1 | SCORE: 0]:
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+!                        !  +----------+
+!                        !  |   NEXT   |
+!          & &           !  +----------+
+!            &           !  | @ @ @ @  |
+!            &           !  |          |
+!                        !  |          |
+!                        !  |          |
+!                        !  |          |
+!                        !  +----------+
+!                        !  |    X     |
+!                        !  |  X X X   |
+!                        !  |          |
+!                        !  |          |
+!            X           !  |          |
+!          X X X         !  +----------+
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # License
 

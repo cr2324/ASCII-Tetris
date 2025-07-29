@@ -8,3 +8,6 @@ $(EXE): $(OBJECTS)
 
 %.o: %.c
 	$(CC) $(FLAGS) -c $< -o $@
+
+clean:
+	rm -f $(OBJECTS) $(EXE)

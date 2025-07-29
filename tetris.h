@@ -19,11 +19,9 @@ void tetris_run(int width, int height);
 
 void tetris_new_block(struct tetris *t);
 
-void tetris_new_block(struct tetris *t);
-
 void tetris_print_block(struct tetris *t);
 
-void tetris_rotate(struct tetris *t);
+void tetris_rotate(struct tetris *t, int r);
 
 void tetris_gravity(struct tetris *t);
 
@@ -33,6 +31,8 @@ void tetris_check_lines(struct tetris *t);
 
 int tetris_level(struct tetris *t);
 
-
+void tetris_toggle_pause(struct tetris *t);
+void tetris_save_state(struct tetris *t);
+void tetris_restore_state(struct tetris *t);
 
 #endif //TETRIS_H

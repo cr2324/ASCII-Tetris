@@ -1,3 +1,0 @@
-/home/robodaniil/Labs_3rd_sem/task_2/ASCII-Tetris/build/CMakeFiles/ascii_tetris.dir
-/home/robodaniil/Labs_3rd_sem/task_2/ASCII-Tetris/build/CMakeFiles/edit_cache.dir
-/home/robodaniil/Labs_3rd_sem/task_2/ASCII-Tetris/build/CMakeFiles/rebuild_cache.dir

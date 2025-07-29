@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "tetris.h"
+#include <tetris.h>
 #include <termios.h>
 #include <signal.h>
 #include <time.h>
@@ -18,13 +18,21 @@ struct tetris {
     int level;
     int gameover;
     int score;
+    int paused;
     struct tetris_block {
         char data[5][5];
         int w;
         int h;
     } current;
+    struct tetris_block next_blocks[3];
     int x;
     int y;
+    char **prev_game;
+    int prev_score;
+    int prev_level;
+    struct tetris_block prev_next_blocks[3];
+    struct tetris_block last_placed_block;
+    int undo_state; // 0: no undo, 1: can undo, 2: undo performed, piece falling
 };
 
 struct tetris_block blocks[] =
@@ -49,6 +57,9 @@ struct tetris_block blocks[] =
     2, 3},
     {{"ZZ ",
          " ZZ"},
+    3, 2},
+    {{" SS",
+         "SS "},
     3, 2}
 };
 
@@ -77,18 +88,21 @@ struct termios save;
 
 void
 tetris_cleanup_io() {
+    printf("\e[?25h");
     tcsetattr(fileno(stdin),TCSANOW,&save);
 }
 
 void
 tetris_signal_quit(int s) {
     tetris_cleanup_io();
+    exit(0);
 }
 
 void
 tetris_set_ioconfig() {
     struct termios custom;
     int fd=fileno(stdin);
+    printf("\e[?25l");
     tcgetattr(fd, &save);
     custom=save;
     custom.c_lflag &= ~(ICANON|ECHO);
@@ -98,18 +112,26 @@ tetris_set_ioconfig() {
 
 void
 tetris_init(struct tetris *t,int w,int h) {
-    int x, y;
+    int x, y, i;
     t->level = 1;
     t->score = 0;
     t->gameover = 0;
+    t->paused = 0;
     t->w = w;
     t->h = h;
     t->game = malloc(sizeof(char *)*w);
+    t->prev_game = malloc(sizeof(char *)*w);
     for (x=0; x<w; x++) {
         t->game[x] = malloc(sizeof(char)*h);
+        t->prev_game[x] = malloc(sizeof(char)*h);
         for (y=0; y<h; y++)
             t->game[x][y] = ' ';
+            t->prev_game[x][y] = ' ';
     }
+    for (i = 0; i < 3; i++) {
+        t->next_blocks[i] = blocks[random()%TETRIS_PIECES];
+    }
+    t->undo_state = 0;
 }
 
 void
@@ -117,15 +139,52 @@ tetris_clean(struct tetris *t) {
     int x;
     for (x=0; x<t->w; x++) {
         free(t->game[x]);
+        free(t->prev_game[x]);
     }
     free(t->game);
+    free(t->prev_game);
+}
+
+void
+tetris_save_state(struct tetris *t) {
+    int x, y;
+    for (x = 0; x < t->w; x++) {
+        for (y = 0; y < t->h; y++) {
+            t->prev_game[x][y] = t->game[x][y];
+        }
+    }
+    t->prev_score = t->score;
+    t->prev_level = t->level;
+    for (int i = 0; i < 3; i++) {
+        t->prev_next_blocks[i] = t->next_blocks[i];
+    }
+    t->last_placed_block = t->current;
+    t->undo_state = 1; // Can undo
+}
+
+void
+tetris_restore_state(struct tetris *t) {
+    int x, y;
+    for (x = 0; x < t->w; x++) {
+        for (y = 0; y < t->h; y++) {
+            t->game[x][y] = t->prev_game[x][y];
+        }
+    }
+    t->score = t->prev_score;
+    t->level = t->prev_level;
+    for (int i = 0; i < 3; i++) {
+        t->next_blocks[i] = t->prev_next_blocks[i];
+    }
+    t->current = t->last_placed_block;
+    t->x = (t->w / 2) - (t->current.w / 2);
+    t->y = 0;
+    t->undo_state = 2;
 }
 
 void
 tetris_print(struct tetris *t) {
-    int x,y;
-    for (x=0; x<30; x++)
-        printf("\n");
+    int x,y,i,j;
+    printf("\e[H");
     printf("[LEVEL: %d | SCORE: %d]\n", t->level, t->score);
     for (x=0; x<2*t->w+2; x++)
         printf("~");
@@ -140,7 +199,48 @@ tetris_print(struct tetris *t) {
             else
                 printf("%c ", t->game[x][y]);
         }
-        printf ("!\n");
+        printf ("!");
+        if (y < 21) {
+            if (y == 0) {
+                printf("  +----------+");
+            } else if (y == 1) {
+                printf("  |   NEXT   |");
+            } else if (y == 2 || y == 8 || y == 14) {
+                printf("  +----------+");
+            } else if (y >= 3 && y < 19) {
+                printf("  |");
+                int block_index = (y - 3) / 6;
+                int row_in_block = (y - 3) % 6;
+
+                if (row_in_block < 5) {
+                    struct tetris_block next_block = t->next_blocks[block_index];
+                    int block_display_width = next_block.w * 2;
+                    int padding_left = (10 - block_display_width) / 2;
+                    int padding_right = 10 - block_display_width - padding_left;
+
+                    for (j = 0; j < padding_left; j++) {
+                        printf(" ");
+                    }
+
+                    for (j = 0; j < next_block.w; j++) {
+                        if (row_in_block < next_block.h && next_block.data[row_in_block][j] != ' ') {
+                            printf("%c ", next_block.data[row_in_block][j]);
+                        } else {
+                            printf("  ");
+                        }
+                    }
+                    for (j = 0; j < padding_right; j++) {
+                        printf(" ");
+                    }
+                } else {
+                    printf("          ");
+                }
+                printf("|");
+            } else if (y == 20) {
+                printf("  +----------+");
+            }
+        }
+        printf ("\n");
     }
     for (x=0; x<2*t->w+2; x++)
         printf("~");
@@ -169,7 +269,10 @@ tetris_hittest(struct tetris *t) {
 
 void
 tetris_new_block(struct tetris *t) {
-    t->current=blocks[random()%TETRIS_PIECES];
+    t->current = t->next_blocks[0];
+    t->next_blocks[0] = t->next_blocks[1];
+    t->next_blocks[1] = t->next_blocks[2];
+    t->next_blocks[2] = blocks[random()%TETRIS_PIECES];
     t->x=(t->w/2) - (t->current.w/2);
     t->y=0;
     if (tetris_hittest(t)) {
@@ -189,7 +292,7 @@ tetris_print_block(struct tetris *t) {
 }
 
 void
-tetris_rotate(struct tetris *t) {
+tetris_rotate(struct tetris *t, int r) {
     struct tetris_block b=t->current;
     struct tetris_block s=b;
     int x,y;
@@ -197,7 +300,10 @@ tetris_rotate(struct tetris *t) {
     b.h=s.w;
     for (x=0; x<s.w; x++)
         for (y=0; y<s.h; y++) {
-            b.data[x][y]=s.data[s.h-y-1][x];
+            if (r>0)
+                b.data[x][y]=s.data[s.h-y-1][x];
+            else
+                b.data[x][y]=s.data[y][s.w-x-1];
         }
     x=t->x;
     y=t->y;
@@ -217,8 +323,19 @@ tetris_gravity(struct tetris *t) {
     t->y++;
     if (tetris_hittest(t)) {
         t->y--;
+
+        if (t->undo_state != 2) {
+            tetris_save_state(t);
+        }
+
         tetris_print_block(t);
-        tetris_new_block(t);
+
+        if (t->undo_state == 2) {
+            t->undo_state = 0;
+            tetris_new_block(t);
+        } else {
+            tetris_new_block(t);
+        }
     }
 }
 
@@ -253,6 +370,11 @@ tetris_check_lines(struct tetris *t) {
     }
 }
 
+void
+tetris_toggle_pause(struct tetris *t) {
+    t->paused = !t->paused;
+}
+
 int
 tetris_level(struct tetris *t) {
     int i;
@@ -270,7 +392,12 @@ tetris_run(int w, int h) {
     struct tetris t;
     char cmd;
     int count=0;
+    
+    printf("\033[2J\033[H");
+    fflush(stdout);
+    
     tetris_set_ioconfig();
+    signal(SIGINT, tetris_signal_quit);
     tetris_init(&t, w, h);
     srand(time(NULL));
 
@@ -280,35 +407,88 @@ tetris_run(int w, int h) {
     tetris_new_block(&t);
     while (!t.gameover) {
         nanosleep(&tm, NULL);
-        count++;
-        if (count%50 == 0) {
-            tetris_print(&t);
-        }
-        if (count%350 == 0) {
-            tetris_gravity(&t);
-            tetris_check_lines(&t);
+        if (!t.paused) {
+            count++;
+            if (count%50 == 0) {
+                tetris_print(&t);
+            }
+            if (count%350 == 0) {
+                tetris_gravity(&t);
+                tetris_check_lines(&t);
+            }
         }
         while ((cmd=getchar())>0) {
             switch (cmd) {
+                case 'p':
+                    tetris_toggle_pause(&t);
+                    break;
                 case 'q':
-                    t.x--;
-                    if (tetris_hittest(&t))
-                        t.x++;
+                case 68:
+                    if (!t.paused) {
+                        t.x--;
+                        if (tetris_hittest(&t))
+                            t.x++;
+                    }
                     break;
                 case 'd':
-                    t.x++;
-                    if (tetris_hittest(&t))
-                        t.x--;
+                case 67:
+                    if (!t.paused) {
+                        t.x++;
+                        if (tetris_hittest(&t))
+                            t.x--;
+                    }
                     break;
                 case 's':
-                    tetris_gravity(&t);
+                case 66:
+                    if (!t.paused) {
+                        tetris_gravity(&t);
+                    }
                     break;
                 case ' ':
-                    tetris_rotate(&t);
+                case 65:
+                    if (!t.paused) {
+                        while(!tetris_hittest(&t))
+                            t.y++;
+                        t.y--;
+                    }
+                    break;
+                case 'z':
+                    if (!t.paused) {
+                        tetris_rotate(&t, 0);
+                    }
+                    break;
+                case 'x':
+                    if (!t.paused) {
+                        tetris_rotate(&t, 1);
+                    }
+                    break;
+                case 'c':
+                    if (!t.paused) {
+                        tetris_rotate(&t, 1);
+                        tetris_rotate(&t, 1);
+                    }
+                    break;
+                case 'r':
+                    if (!t.paused) {
+                        printf("\033[2J\033[H");
+                        fflush(stdout);
+                        tetris_clean(&t);
+                        tetris_init(&t, w, h);
+                        tetris_new_block(&t);
+                    }
+                    break;
+                case 'u':
+                    if (!t.paused) {
+                        if (t.undo_state == 1) {
+                            tetris_restore_state(&t);
+                        }
+                    }
                     break;
             }
         }
-        tm.tv_nsec=tetris_level(&t);
+        if (!t.paused) {
+            tm.tv_nsec=tetris_level(&t);
+        }
     }
 
     tetris_print(&t);
